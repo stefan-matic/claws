@@ -84,21 +84,21 @@ go build -o claws ./cmd/claws
 
 ```bash
 # Run claws (uses default AWS credentials)
-./claws
+claws
 
 # Or with specific profile
-./claws -p myprofile
+claws -p myprofile
 
 # Or with specific region
-./claws -r us-west-2
+claws -r us-west-2
 
 # Read-only mode (disables destructive actions)
-./claws --read-only
+claws --read-only
 # or
-CLAWS_READ_ONLY=1 ./claws
+CLAWS_READ_ONLY=1 claws
 
 # Enable debug logging to file
-./claws -l debug.log
+claws -l debug.log
 ```
 
 ## Key Bindings
