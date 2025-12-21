@@ -1,22 +1,50 @@
 version: 2
 
 builds:
-  - main: ./cmd/claws
+  # ARM64 build (always)
+  - id: arm64
+    main: ./cmd/claws
     binary: claws
     env:
       - CGO_ENABLED=0
     goos:
       - linux
       - darwin
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  # AMD64 build (skip for prereleases unless tag contains "amd64" or "all")
+  # Examples: v0.1.0-rc1 (skip), v0.1.0-rc1-amd64 (build), v0.1.0-rc1-all (build), v0.1.0 (build)
+  - id: amd64
+    main: ./cmd/claws
+    binary: claws
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    skip: '{{ and (ne .Prerelease "") (not (or (contains .Tag "amd64") (contains .Tag "all"))) }}'
+
+  # Windows build (skip for prereleases unless tag contains "win" or "all")
+  # Examples: v0.1.0-rc1 (skip), v0.1.0-rc1-win (build), v0.1.0-rc1-all (build), v0.1.0 (build)
+  - id: windows
+    main: ./cmd/claws
+    binary: claws
+    env:
+      - CGO_ENABLED=0
+    goos:
       - windows
     goarch:
       - amd64
-      - arm64
-    ignore:
-      - goos: windows
-        goarch: arm64
     ldflags:
       - -s -w -X main.version={{.Version}}
+    skip: '{{ and (ne .Prerelease "") (not (or (contains .Tag "win") (contains .Tag "all"))) }}'
 
 archives:
   - formats: [tar.gz]
@@ -35,8 +63,12 @@ changelog:
       - '^docs:'
       - '^test:'
 
+release:
+  prerelease: auto
+
 homebrew_casks:
-  - repository:
+  - skip_upload: auto
+    repository:
       owner: clawscli
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
