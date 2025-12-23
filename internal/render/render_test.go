@@ -1,6 +1,7 @@
 package render
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -282,4 +283,67 @@ func TestStyleHelpers(t *testing.T) {
 	_ = DangerStyle().Render("test")
 	_ = DimStyle().Render("test")
 	_ = DefaultStyle().Render("test")
+}
+
+func TestEmptyValueConstants(t *testing.T) {
+	// Verify constants have expected values
+	tests := []struct {
+		name     string
+		constant string
+		want     string
+	}{
+		{"NotConfigured", NotConfigured, "Not configured"},
+		{"Empty", Empty, "None"},
+		{"NoValue", NoValue, "-"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.constant != tt.want {
+				t.Errorf("%s = %q, want %q", tt.name, tt.constant, tt.want)
+			}
+		})
+	}
+}
+
+func TestDetailBuilderWithConstants(t *testing.T) {
+	d := NewDetailBuilder()
+
+	// Test using constants in Field
+	d.Field("Status", NotConfigured)
+	d.Field("Items", Empty)
+	d.Field("Comment", NoValue)
+
+	result := d.String()
+
+	// Verify all constants appear in output as plain text (not styled)
+	// This is important for Loading... replacement to work
+	if !strings.Contains(result, NotConfigured+"\n") {
+		t.Errorf("result should contain %q as plain text", NotConfigured)
+	}
+	if !strings.Contains(result, Empty+"\n") {
+		t.Errorf("result should contain %q as plain text", Empty)
+	}
+	if !strings.Contains(result, NoValue+"\n") {
+		t.Errorf("result should contain %q as plain text", NoValue)
+	}
+}
+
+func TestDetailBuilderPlaceholdersMatchable(t *testing.T) {
+	d := NewDetailBuilder()
+
+	// Placeholders should be matchable for Loading... replacement
+	d.Field("Status", NotConfigured)
+	d.Field("Items", Empty)
+	d.Field("Comment", NoValue)
+
+	result := d.String()
+
+	// Each placeholder should appear with newline suffix (for line-ending match)
+	placeholders := []string{NotConfigured, Empty, NoValue}
+	for _, p := range placeholders {
+		if !strings.Contains(result, p+"\n") {
+			t.Errorf("placeholder %q should be matchable with newline suffix, got:\n%s", p, result)
+		}
+	}
 }

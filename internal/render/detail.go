@@ -9,6 +9,22 @@ import (
 	"github.com/clawscli/claws/internal/ui"
 )
 
+// Empty value placeholder constants for consistent display across detail views.
+// These are replaced with "Loading..." during async data fetching.
+const (
+	// NotConfigured indicates an optional feature/setting is not configured.
+	// Use for: Versioning, Encryption, Public Access Block, etc.
+	NotConfigured = "Not configured"
+
+	// Empty indicates a list/collection has no items.
+	// Use for: Policies, Groups, Access Keys, etc.
+	Empty = "None"
+
+	// NoValue indicates a single value field has no value.
+	// Use for: Description, Comment, optional single values, etc.
+	NoValue = "-"
+)
+
 // DetailStyles contains common styles for detail views
 // cachedDetailStyles holds the cached default styles
 var cachedDetailStyles *DetailStyles
@@ -65,13 +81,21 @@ func (d *DetailBuilder) Section(name string) *DetailBuilder {
 	return d
 }
 
-// Field adds a label: value line
+// Field adds a label: value line.
+// Placeholder constants (NotConfigured, Empty, NoValue) are written without styling
+// so they can be replaced with "Loading..." during async detail refresh.
 func (d *DetailBuilder) Field(label, value string) *DetailBuilder {
-	d.sb.WriteString(d.styles.Label.Render(label+":") + d.styles.Value.Render(value) + "\n")
+	styledValue := value
+	if value != NotConfigured && value != Empty && value != NoValue {
+		styledValue = d.styles.Value.Render(value)
+	}
+	d.sb.WriteString(d.styles.Label.Render(label+":") + styledValue + "\n")
 	return d
 }
 
-// FieldStyled adds a label: value line with custom value styling
+// FieldStyled adds a label: value line with custom value styling.
+// Note: Do not use with placeholder constants (NotConfigured, Empty, NoValue)
+// as styling prevents Loading... replacement during refresh.
 func (d *DetailBuilder) FieldStyled(label, value string, style lipgloss.Style) *DetailBuilder {
 	d.sb.WriteString(d.styles.Label.Render(label+":") + style.Render(value) + "\n")
 	return d

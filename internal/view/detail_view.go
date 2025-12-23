@@ -264,16 +264,35 @@ func (d *DetailView) getNavigationShortcuts() string {
 }
 
 func (d *DetailView) renderContent() string {
+	var detail string
+
 	// Try to use renderer's RenderDetail if available
 	if d.renderer != nil {
-		detail := d.renderer.RenderDetail(d.resource)
-		if detail != "" {
-			return detail
-		}
+		detail = d.renderer.RenderDetail(d.resource)
 	}
 
 	// Fallback to generic detail view
-	return d.renderGenericDetail()
+	if detail == "" {
+		detail = d.renderGenericDetail()
+	}
+
+	// Replace placeholder values with "Loading..." during async refresh.
+	// Match placeholders only at line endings to avoid replacing substrings
+	// (e.g., "Not configured server" should not be replaced).
+	if d.refreshing && detail != "" {
+		loading := ui.DimStyle().Render("Loading...")
+
+		// Replace placeholders at end of line or end of content
+		for _, placeholder := range []string{render.NotConfigured, render.Empty, render.NoValue} {
+			detail = strings.ReplaceAll(detail, placeholder+"\n", loading+"\n")
+			if strings.HasSuffix(detail, placeholder) {
+				detail = detail[:len(detail)-len(placeholder)] + loading
+				break // Only one placeholder can be at EOF
+			}
+		}
+	}
+
+	return detail
 }
 
 func (d *DetailView) renderGenericDetail() string {
