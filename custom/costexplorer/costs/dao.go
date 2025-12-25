@@ -19,20 +19,21 @@ type CostDAO struct {
 
 // NewCostDAO creates a new CostDAO.
 func NewCostDAO(ctx context.Context) (dao.DAO, error) {
-	cfg, err := appaws.NewConfig(ctx)
+	// Cost Explorer API is only available in us-east-1
+	cfg, err := appaws.NewConfigWithRegion(ctx, appaws.CostExplorerRegion)
 	if err != nil {
 		return nil, fmt.Errorf("new costexplorer/costs dao: %w", err)
 	}
 	return &CostDAO{
-		BaseDAO: dao.NewBaseDAO("cost-explorer", "costs"),
+		BaseDAO: dao.NewBaseDAO("costexplorer", "costs"),
 		client:  costexplorer.NewFromConfig(cfg),
 	}, nil
 }
 
 // List returns costs grouped by service for the current month.
 func (d *CostDAO) List(ctx context.Context) ([]dao.Resource, error) {
-	// Get current month's date range
-	now := time.Now()
+	// Get current month's date range (use UTC for consistency)
+	now := time.Now().UTC()
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endOfMonth := startOfMonth.AddDate(0, 1, 0)
 
@@ -70,8 +71,8 @@ func (d *CostDAO) List(ctx context.Context) ([]dao.Resource, error) {
 
 // Get returns cost for a specific service.
 func (d *CostDAO) Get(ctx context.Context, id string) (dao.Resource, error) {
-	// Get current month's date range
-	now := time.Now()
+	// Get current month's date range (use UTC for consistency)
+	now := time.Now().UTC()
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	endOfMonth := startOfMonth.AddDate(0, 1, 0)
 
@@ -117,6 +118,11 @@ func (d *CostDAO) Delete(ctx context.Context, id string) error {
 	return fmt.Errorf("delete not supported for cost data")
 }
 
+// Supports returns true for List and Get operations only.
+func (d *CostDAO) Supports(op dao.Operation) bool {
+	return op == dao.OpList || op == dao.OpGet
+}
+
 // CostResource wraps AWS cost data for a service.
 type CostResource struct {
 	dao.BaseResource
@@ -153,7 +159,7 @@ func NewCostResource(group types.Group, start, end string) *CostResource {
 	return &CostResource{
 		BaseResource: dao.BaseResource{
 			ID:  serviceName,
-			ARN: fmt.Sprintf("cost-explorer::%s", serviceName),
+			ARN: fmt.Sprintf("costexplorer::%s", serviceName),
 		},
 		ServiceName:   serviceName,
 		Cost:          cost,

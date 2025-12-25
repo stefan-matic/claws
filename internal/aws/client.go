@@ -9,6 +9,9 @@ import (
 	appconfig "github.com/clawscli/claws/internal/config"
 )
 
+// CostExplorerRegion is the only region where Cost Explorer API is available.
+const CostExplorerRegion = "us-east-1"
+
 // NewConfig creates a new AWS config with the application's region and profile settings.
 // This is the preferred way to create AWS configs in DAOs.
 func NewConfig(ctx context.Context) (aws.Config, error) {
