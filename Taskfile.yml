@@ -3,6 +3,14 @@ version: '3'
 vars:
   LOCALSTACK_CONTAINER: claws-localstack
 
+# Shared environment for LocalStack tasks
+env: &localstack-env
+  AWS_ENDPOINT_URL: http://localhost:4566
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_EC2_METADATA_DISABLED: "true"
+
 tasks:
   build:
     desc: Build the claws binary
@@ -30,15 +38,18 @@ tasks:
   localstack:start:
     desc: Start LocalStack container
     cmds:
+      - docker start {{.LOCALSTACK_CONTAINER}} 2>/dev/null || docker run -d --name {{.LOCALSTACK_CONTAINER}} -p 4566:4566 localstack/localstack:4.12.0
       - |
-        if docker ps -a --format '{{.Names}}' | grep -q "^{{.LOCALSTACK_CONTAINER}}$"; then
-          docker start {{.LOCALSTACK_CONTAINER}}
-        else
-          docker run -d --name {{.LOCALSTACK_CONTAINER}} -p 4566:4566 localstack/localstack
-        fi
-      - echo "Waiting for LocalStack to be ready..."
-      - sleep 3
-      - echo "LocalStack started at http://localhost:4566"
+        echo "Waiting for LocalStack to be ready..."
+        for i in $(seq 1 30); do
+          if curl -s --connect-timeout 2 --max-time 5 http://localhost:4566/_localstack/health 2>/dev/null | grep -q '"s3": "running"'; then
+            echo "LocalStack started at http://localhost:4566"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "LocalStack failed to start within 30s"
+        exit 1
 
   localstack:stop:
     desc: Stop LocalStack container
@@ -55,41 +66,47 @@ tasks:
     cmds:
       - docker logs -f {{.LOCALSTACK_CONTAINER}}
 
-  localstack:setup:
-    desc: Create test resources in LocalStack
+  localstack:demo-setup:
+    desc: Create demo resources in LocalStack (VPCs, EC2, S3)
+    deps: [localstack:start]
+    env: *localstack-env
+    cmds:
+      - ./scripts/localstack-demo-setup.sh
+
+  localstack:demo-cleanup:
+    desc: Cleanup demo resources from LocalStack
+    env: *localstack-env
+    cmds:
+      - ./scripts/localstack-demo-cleanup.sh
+
+  localstack:demo:
+    desc: Run claws against LocalStack
+    deps: [build, localstack:start]
+    env: *localstack-env
+    cmds:
+      - ./claws
+
+  demo:record:
+    desc: Record demo.gif using VHS + LocalStack (Linux only - --network host required)
+    deps: [build, localstack:start, localstack:demo-setup]
+    preconditions:
+      - sh: '[ "$(uname -s)" = "Linux" ]'
+        msg: "demo:record requires Linux (--network host not supported on macOS/Windows)"
     cmds:
       - |
-        export AWS_ENDPOINT_URL=http://localhost:4566
-        export AWS_ACCESS_KEY_ID=test
-        export AWS_SECRET_ACCESS_KEY=test
-        export AWS_DEFAULT_REGION=us-east-1
-
-        echo "Creating S3 bucket..."
-        aws s3 mb s3://test-bucket 2>/dev/null || true
-
-        echo "Creating VPC..."
-        VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --query 'Vpc.VpcId' --output text 2>/dev/null || echo "")
-        if [ -n "$VPC_ID" ]; then
-          aws ec2 create-tags --resources $VPC_ID --tags Key=Name,Value=test-vpc
-          echo "Created VPC: $VPC_ID"
-        fi
-
-        echo "Creating Security Group..."
-        SG_ID=$(aws ec2 create-security-group --group-name test-sg --description "Test SG" --vpc-id $VPC_ID --query 'GroupId' --output text 2>/dev/null || echo "")
-        if [ -n "$SG_ID" ]; then
-          echo "Created Security Group: $SG_ID"
-        fi
-
-        echo "LocalStack test resources created!"
+        docker run --rm --network host \
+          -v "$(pwd)":/vhs \
+          -e AWS_ENDPOINT_URL=http://localhost:4566 \
+          -e AWS_ACCESS_KEY_ID=test \
+          -e AWS_SECRET_ACCESS_KEY=test \
+          -e AWS_DEFAULT_REGION=us-east-1 \
+          -e AWS_EC2_METADATA_DISABLED=true \
+          ghcr.io/charmbracelet/vhs:v0.10.0 cassette.tape
 
   test-localstack:
     desc: Run integration tests with LocalStack
     deps: [localstack:start]
-    env:
-      AWS_ENDPOINT_URL: http://localhost:4566
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      AWS_DEFAULT_REGION: us-east-1
+    env: *localstack-env
     cmds:
       - go test -v ./... -tags=integration -timeout 60s
 
