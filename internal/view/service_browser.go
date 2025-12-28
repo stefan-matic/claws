@@ -339,6 +339,12 @@ func (s *ServiceBrowser) handleNavigation(msg tea.KeyPressMsg) (tea.Model, tea.C
 			s.rebuildFlatItems()
 			s.cursor = 0
 		}
+
+	case "~":
+		dashboard := NewDashboardView(s.ctx, s.registry)
+		return s, func() tea.Msg {
+			return NavigateMsg{View: dashboard, ClearStack: true}
+		}
 	}
 
 	// Also allow esc to clear filter (handles various escape sequences)
@@ -657,12 +663,12 @@ func (s *ServiceBrowser) SetSize(width, height int) tea.Cmd {
 // StatusLine implements View
 func (s *ServiceBrowser) StatusLine() string {
 	if s.filterActive {
-		return "Type to filter • Enter to confirm • Esc to cancel"
+		return "type to filter • enter:confirm • esc:cancel"
 	}
 	if s.filterText != "" {
-		return "/ to filter • c to clear • Enter to select • ? for help"
+		return "~:home • c:clear • enter:select • ?:help"
 	}
-	return "/ to filter • Enter to select • ? for help"
+	return "~:home • /:filter • enter:select • ?:help"
 }
 
 // HasActiveInput implements InputCapture
