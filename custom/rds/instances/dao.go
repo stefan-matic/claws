@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
+
 	appaws "github.com/clawscli/claws/internal/aws"
 	"github.com/clawscli/claws/internal/dao"
 )
@@ -99,7 +100,7 @@ func NewInstanceResource(instance types.DBInstance) *InstanceResource {
 			ID:   appaws.Str(instance.DBInstanceIdentifier),
 			Name: appaws.Str(instance.DBInstanceIdentifier),
 			ARN:  appaws.Str(instance.DBInstanceArn),
-			Tags: rdsTagsToMap(instance.TagList),
+			Tags: appaws.TagsToMap(instance.TagList),
 			Data: instance,
 		},
 		Item: instance,
@@ -181,15 +182,4 @@ func (r *InstanceResource) AllocatedStorage() int32 {
 		return *r.Item.AllocatedStorage
 	}
 	return 0
-}
-
-// rdsTagsToMap converts RDS tags to a map
-func rdsTagsToMap(tags []types.Tag) map[string]string {
-	result := make(map[string]string)
-	for _, tag := range tags {
-		if tag.Key != nil && tag.Value != nil {
-			result[*tag.Key] = *tag.Value
-		}
-	}
-	return result
 }

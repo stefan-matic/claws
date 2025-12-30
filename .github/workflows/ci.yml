@@ -25,16 +25,12 @@ jobs:
       - name: Build
         run: go build ./...
 
-      - name: Vet
-        run: go vet ./...
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          install-mode: goinstall
+          version: v1.64.8
+          args: --timeout=5m
 
       - name: Test
         run: go test ./...
-
-      - name: Check formatting
-        run: |
-          if [ -n "$(gofmt -l .)" ]; then
-            echo "Code is not formatted. Run 'gofmt -w .'"
-            gofmt -l .
-            exit 1
-          fi
