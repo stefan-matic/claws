@@ -129,7 +129,7 @@ func (d *DetailView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return d, nil
 
 	case tea.KeyPressMsg:
-		// Let app handle back navigation
+		// Let app handle back navigation (esc/backspace/q handled by app.go)
 		if IsEscKey(msg) {
 			return d, nil
 		}
@@ -255,7 +255,7 @@ func (d *DetailView) StatusLine() string {
 		parts = append(parts, navInfo)
 	}
 
-	parts = append(parts, "esc:back")
+	parts = append(parts, "q/esc:back")
 	return strings.Join(parts, " • ")
 }
 

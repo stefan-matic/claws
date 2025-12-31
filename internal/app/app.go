@@ -114,7 +114,7 @@ func (a *App) Init() tea.Cmd {
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.showWarnings && a.warningsReady {
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-			if keyMsg.Code == tea.KeyEnter || keyMsg.String() == " " {
+			if keyMsg.Code == tea.KeyEnter || keyMsg.String() == "space" || keyMsg.String() == "q" {
 				a.showWarnings = false
 				return a, nil
 			}
@@ -162,10 +162,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.commandInput.SetWidth(msg.Width)
 		// Update cached styles with new width
 		a.styles = newAppStyles(msg.Width)
-		// Mark warnings as ready to be dismissed after first window size (terminal init complete)
-		if a.showWarnings && !a.warningsReady {
-			a.warningsReady = true
-		}
+		// Mark warnings ready after first WindowSizeMsg (terminal initialized).
+		// Safe to set unconditionally - only affects dismissal when showWarnings is true.
+		a.warningsReady = true
 		if a.currentView != nil {
 			return a, a.currentView.SetSize(msg.Width, msg.Height-2)
 		}
@@ -203,6 +202,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch {
 		case key.Matches(msg, a.keys.Quit):
+			switch a.currentView.(type) {
+			case *view.DetailView, *view.DiffView:
+				if len(a.viewStack) > 0 {
+					a.currentView = a.viewStack[len(a.viewStack)-1]
+					a.viewStack = a.viewStack[:len(a.viewStack)-1]
+					return a, a.currentView.SetSize(a.width, a.height-2)
+				}
+			}
 			return a, tea.Quit
 
 		case key.Matches(msg, a.keys.Help):
@@ -420,7 +427,7 @@ func (a *App) renderWarnings() string {
 		content += s.warningItem.Render("• "+w) + "\n"
 	}
 
-	content += "\n" + s.warningDim.Render("Press Enter or Space to continue...")
+	content += "\n" + s.warningDim.Render("Press Enter, Space, or q to continue...")
 
 	boxStyle := s.warningBox.Width(a.width - 10)
 	box := boxStyle.Render(content)
@@ -456,7 +463,7 @@ func (a *App) handleModalUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case tea.KeyPressMsg:
-		if view.IsEscKey(msg) || msg.Code == tea.KeyBackspace {
+		if view.IsEscKey(msg) || msg.Code == tea.KeyBackspace || msg.String() == "q" {
 			if ic, ok := a.modal.Content.(view.InputCapture); ok && ic.HasActiveInput() {
 				break
 			}
@@ -533,8 +540,8 @@ func defaultKeyMap() keyMap {
 			key.WithHelp("?", "help"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
+			key.WithKeys("q", "ctrl+c"),
+			key.WithHelp("q", "quit"),
 		),
 	}
 }
