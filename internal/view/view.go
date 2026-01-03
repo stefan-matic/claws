@@ -138,6 +138,10 @@ func (h *NavigationHelper) HandleKey(key string, resource dao.Resource) tea.Cmd 
 	navigations := navigator.Navigations(resource)
 	for _, nav := range navigations {
 		if nav.Key == key {
+			if nav.ViewType != "" {
+				return h.createCustomView(nav, resource)
+			}
+
 			var newBrowser *ResourceBrowser
 			if nav.AutoReload {
 				interval := nav.ReloadInterval
@@ -170,4 +174,42 @@ func (h *NavigationHelper) HandleKey(key string, resource dao.Resource) tea.Cmd 
 	}
 
 	return nil
+}
+
+func (h *NavigationHelper) createCustomView(nav render.Navigation, resource dao.Resource) tea.Cmd {
+	switch nav.ViewType {
+	case render.ViewTypeLogView:
+		return h.createLogView(resource)
+	default:
+		return nil
+	}
+}
+
+func (h *NavigationHelper) createLogView(resource dao.Resource) tea.Cmd {
+	var logView *LogView
+
+	type logGroupProvider interface{ LogGroupName() string }
+	type logStreamProvider interface{ LogStreamName() string }
+	type lastEventProvider interface{ LastEventTimestamp() int64 }
+
+	unwrapped := dao.UnwrapResource(resource)
+
+	if p, ok := unwrapped.(logGroupProvider); ok {
+		logGroupName := p.LogGroupName()
+		if sp, ok := unwrapped.(logStreamProvider); ok {
+			var lastEvent int64
+			if lp, ok := unwrapped.(lastEventProvider); ok {
+				lastEvent = lp.LastEventTimestamp()
+			}
+			logView = NewLogViewWithStream(h.Ctx, logGroupName, sp.LogStreamName(), lastEvent)
+		} else {
+			logView = NewLogView(h.Ctx, logGroupName)
+		}
+	} else {
+		logView = NewLogView(h.Ctx, unwrapped.GetID())
+	}
+
+	return func() tea.Msg {
+		return NavigateMsg{View: logView}
+	}
 }

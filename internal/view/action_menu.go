@@ -246,10 +246,7 @@ func (m *ActionMenu) getConfirmToken(act action.Action) string {
 
 func (m *ActionMenu) executeAction(act action.Action) (tea.Model, tea.Cmd) {
 	if act.Type == action.ActionTypeExec {
-		// Record action for post-exec follow-up handling
 		m.lastExecAction = &act
-
-		// For exec actions, use tea.Exec to suspend bubbletea
 		execCmd, err := action.ExpandVariables(act.Command, m.resource)
 		if err != nil {
 			return m, func() tea.Msg {
@@ -273,11 +270,8 @@ func (m *ActionMenu) executeAction(act action.Action) (tea.Model, tea.Cmd) {
 		})
 	}
 
-	// For other actions, execute directly
 	result := action.ExecuteWithDAO(m.ctx, act, m.resource, m.service, m.resType)
 	m.result = &result
-
-	// If action has a follow-up message, send it
 	if result.FollowUpMsg != nil {
 		log.Debug("action has follow-up message", "action", act.Name, "msgType", fmt.Sprintf("%T", result.FollowUpMsg))
 		return m, func() tea.Msg { return result.FollowUpMsg }
