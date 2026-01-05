@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/lipgloss/v2"
@@ -218,16 +219,23 @@ func DefaultTheme() *Theme {
 }
 
 // current holds the active theme
-var current = DefaultTheme()
+var (
+	currentMu sync.RWMutex
+	current   = DefaultTheme()
+)
 
 // Current returns the current active theme
 func Current() *Theme {
+	currentMu.RLock()
+	defer currentMu.RUnlock()
 	return current
 }
 
 func SetTheme(t *Theme) {
 	if t != nil {
+		currentMu.Lock()
 		current = t
+		currentMu.Unlock()
 	}
 }
 

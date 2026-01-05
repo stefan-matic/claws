@@ -230,13 +230,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		ui.SetTheme(theme)
+		a.clipboardFlash = "Theme: " + msg.Name
+		a.clipboardWarning = false
 		if config.File().PersistenceEnabled() {
 			if err := config.File().SaveTheme(msg.Name); err != nil {
 				log.Warn("failed to persist theme", "error", err)
+				a.clipboardFlash = "Theme: " + msg.Name + " (save failed)"
+				a.clipboardWarning = true
 			}
 		}
-		a.clipboardFlash = "Theme: " + msg.Name
-		a.clipboardWarning = false
 		return a, tea.Batch(
 			func() tea.Msg { return view.ThemeChangedMsg{} },
 			tea.Tick(flashDuration, func(t time.Time) tea.Msg { return clearFlashMsg{} }),

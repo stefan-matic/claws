@@ -633,3 +633,35 @@ func TestApplyConfigWithOverride(t *testing.T) {
 		t.Error("CLI override should use dracula, not nord")
 	}
 }
+
+func TestThemeConcurrentAccess(t *testing.T) {
+	original := Current()
+	defer SetTheme(original)
+
+	themes := []*Theme{
+		GetPreset("dark"),
+		GetPreset("light"),
+		GetPreset("nord"),
+		GetPreset("dracula"),
+	}
+
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			for j := 0; j < 100; j++ {
+				SetTheme(themes[j%len(themes)])
+				_ = Current()
+			}
+			done <- true
+		}(i)
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// If we get here without race detector panic, the test passes
+	if Current() == nil {
+		t.Error("Current() should not return nil")
+	}
+}
