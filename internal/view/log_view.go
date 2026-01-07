@@ -28,6 +28,11 @@ const (
 	maxLogBufferSize       = 1000
 	logFetchLimit          = 100
 	viewportHeaderOffset   = 4 // header(1) + status(2) + spacing(1)
+
+	// Filter UI constants
+	filterInputPadding     = 4  // Padding for filter input width
+	minFilterWidth         = 10 // Minimum filter input width
+	maxFilterDisplayLength = 20 // Maximum filter text length in status line
 )
 
 type LogView struct {
@@ -523,9 +528,9 @@ func (v *LogView) SetSize(width, height int) tea.Cmd {
 	v.vp.SetSize(width, viewportHeight)
 
 	// Set filter input width with minimum check
-	filterWidth := width - 4
-	if filterWidth < 10 {
-		filterWidth = 10
+	filterWidth := width - filterInputPadding
+	if filterWidth < minFilterWidth {
+		filterWidth = minFilterWidth
 	}
 	v.filterInput.SetWidth(filterWidth)
 
@@ -542,8 +547,9 @@ func (v *LogView) StatusLine() string {
 
 	if v.filterText != "" {
 		filterDisplay := v.filterText
-		if len(filterDisplay) > 20 {
-			filterDisplay = filterDisplay[:17] + "..."
+		runes := []rune(filterDisplay)
+		if len(runes) > maxFilterDisplayLength {
+			filterDisplay = string(runes[:maxFilterDisplayLength-3]) + "..."
 		}
 		status = fmt.Sprintf("🔍 %s • ", filterDisplay) + status
 	}

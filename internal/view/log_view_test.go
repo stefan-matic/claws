@@ -484,3 +484,44 @@ func TestLogViewFilterStatusLine(t *testing.T) {
 		t.Errorf("Expected filter input status line, got %q", status)
 	}
 }
+
+func TestLogViewFilterUnicode(t *testing.T) {
+	ctx := context.Background()
+	lv := NewLogView(ctx, "/aws/test")
+	lv.SetSize(80, 24)
+	lv.loading = false
+
+	// Test emoji in log message
+	entry1 := logEntry{timestamp: time.Now(), message: "Error: 🔥 server crashed"}
+	entry2 := logEntry{timestamp: time.Now(), message: "Info: ✅ all good"}
+	entry3 := logEntry{timestamp: time.Now(), message: "Warning: 日本語テスト"}
+
+	// Filter by emoji
+	lv.filterText = "🔥"
+	if !lv.matchesFilter(entry1) {
+		t.Error("Expected entry1 to match emoji filter '🔥'")
+	}
+	if lv.matchesFilter(entry2) {
+		t.Error("Expected entry2 to not match emoji filter '🔥'")
+	}
+
+	// Filter by Japanese characters
+	lv.filterText = "日本語"
+	if !lv.matchesFilter(entry3) {
+		t.Error("Expected entry3 to match Japanese filter '日本語'")
+	}
+	if lv.matchesFilter(entry1) {
+		t.Error("Expected entry1 to not match Japanese filter")
+	}
+
+	// Test truncation of long Unicode filter in status line
+	lv.filterText = "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥"
+	status := lv.StatusLine()
+	if !strings.Contains(status, "...") {
+		t.Errorf("Expected long Unicode filter to be truncated, got %q", status)
+	}
+	// Verify it doesn't break Unicode characters
+	if strings.Contains(status, "�") {
+		t.Error("Unicode truncation broke character encoding")
+	}
+}
