@@ -225,7 +225,6 @@ func (d *DetailView) SetSize(width, height int) tea.Cmd {
 	return nil
 }
 
-// StatusLine implements View
 func (d *DetailView) StatusLine() string {
 	parts := []string{d.resource.GetID()}
 
@@ -249,6 +248,18 @@ func (d *DetailView) StatusLine() string {
 
 	parts = append(parts, "q/esc:back")
 	return strings.Join(parts, " • ")
+}
+
+func (d *DetailView) Resource() dao.Resource {
+	return d.resource
+}
+
+func (d *DetailView) Service() string {
+	return d.service
+}
+
+func (d *DetailView) ResourceType() string {
+	return d.resType
 }
 
 // getNavigationShortcuts returns a string of navigation shortcuts for the current resource
@@ -308,20 +319,4 @@ func (d *DetailView) renderGenericDetail() string {
 	out += "\n" + ui.DimStyle().Render("(Raw data view not implemented)")
 
 	return out
-}
-
-// mergeResources merges the refreshed resource with the original to preserve
-// fields that are only available from List() but not from Get().
-func mergeResources(original, refreshed dao.Resource) dao.Resource {
-	if original == nil {
-		return refreshed
-	}
-	if refreshed == nil {
-		return original
-	}
-	// If refreshed resource implements Mergeable, let it copy fields from original
-	if m, ok := refreshed.(dao.Mergeable); ok {
-		m.MergeFrom(original)
-	}
-	return refreshed
 }

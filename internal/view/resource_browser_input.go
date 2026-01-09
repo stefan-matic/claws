@@ -7,6 +7,7 @@ import (
 	"github.com/clawscli/claws/internal/action"
 	"github.com/clawscli/claws/internal/clipboard"
 	"github.com/clawscli/claws/internal/dao"
+	"github.com/clawscli/claws/internal/render"
 )
 
 func (r *ResourceBrowser) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -18,6 +19,10 @@ func (r *ResourceBrowser) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 		if nav, cmd := r.handleNavigation(msg.String()); cmd != nil {
 			return nav, cmd
 		}
+	}
+
+	if model, cmd := r.handleToggleKey(msg.String()); cmd != nil {
+		return model, cmd
 	}
 
 	switch msg.String() {
@@ -173,7 +178,7 @@ func (r *ResourceBrowser) handleEnter() (tea.Model, tea.Cmd) {
 	if len(r.filtered) > 0 && cursor >= 0 && cursor < len(r.filtered) {
 		ctx, resource := r.contextForResource(r.filtered[cursor])
 		if r.markedResource != nil && r.markedResource.GetID() != resource.GetID() {
-			diffView := NewDiffView(ctx, dao.UnwrapResource(r.markedResource), resource, r.renderer, r.service, r.resourceType)
+			diffView := NewDiffView(ctx, r.markedResource, resource, r.renderer, r.service, r.resourceType)
 			return r, func() tea.Msg {
 				return NavigateMsg{View: diffView}
 			}
@@ -342,4 +347,22 @@ func (r *ResourceBrowser) handleCopyARN() (tea.Model, tea.Cmd) {
 		return r, clipboard.NoARN()
 	}
 	return r, nil
+}
+
+func (r *ResourceBrowser) handleToggleKey(key string) (tea.Model, tea.Cmd) {
+	if r.renderer == nil {
+		return nil, nil
+	}
+	toggler, ok := r.renderer.(render.Toggler)
+	if !ok {
+		return nil, nil
+	}
+	for _, toggle := range toggler.ListToggles() {
+		if toggle.Key == key {
+			r.toggleStates[toggle.ContextKey] = !r.toggleStates[toggle.ContextKey]
+			r.loading = true
+			return r, tea.Batch(r.loadResources, r.spinner.Tick)
+		}
+	}
+	return nil, nil
 }
