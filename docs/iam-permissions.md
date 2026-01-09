@@ -6,6 +6,33 @@ claws requires appropriate IAM permissions to access AWS resources. The permissi
 
 For basic read-only browsing, claws needs `Describe*`, `List*`, and `Get*` permissions for the services you want to access.
 
+## AI Chat (Optional)
+
+The AI Chat feature (`A` key) uses Amazon Bedrock. To enable this feature, you need:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModelWithResponseStream",
+      "Resource": "arn:aws:bedrock:*::foundation-model/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "aws-marketplace:Subscribe",
+        "aws-marketplace:ViewSubscriptions"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+**Note**: AWS Marketplace permissions are required for first-time model usage in your account. If the model is already enabled, only the `bedrock:InvokeModelWithResponseStream` permission is needed.
+
 ## Inline Metrics (Optional)
 
 To display inline CloudWatch metrics (toggle with `M` key), you need:
@@ -37,7 +64,7 @@ Some resource actions require additional permissions:
 
 ## Recommended Policy
 
-For full read-only access with metrics:
+For full read-only access with metrics and AI chat:
 
 ```json
 {
@@ -55,6 +82,19 @@ For full read-only access with metrics:
         "cloudwatch:GetMetricData",
         "iam:List*",
         "iam:Get*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModelWithResponseStream",
+      "Resource": "arn:aws:bedrock:*::foundation-model/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "aws-marketplace:Subscribe",
+        "aws-marketplace:ViewSubscriptions"
       ],
       "Resource": "*"
     }

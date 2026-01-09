@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/clawscli/claws/internal/ai"
 	"github.com/clawscli/claws/internal/aws"
 	"github.com/clawscli/claws/internal/clipboard"
 	"github.com/clawscli/claws/internal/config"
@@ -329,6 +330,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.modal = &view.Modal{Content: profileSelector, Width: view.ModalWidthProfile}
 			return a, tea.Batch(
 				profileSelector.Init(),
+				a.modal.SetSize(a.width, a.height),
+			)
+
+		case key.Matches(msg, a.keys.AI):
+			aiCtx := a.buildAIContext()
+			chatOverlay := view.NewChatOverlay(a.ctx, a.registry, aiCtx)
+			a.modal = &view.Modal{Content: chatOverlay, Width: view.ModalWidthChat}
+			return a, tea.Batch(
+				chatOverlay.Init(),
 				a.modal.SetSize(a.width, a.height),
 			)
 		}
@@ -773,6 +783,7 @@ type keyMap struct {
 	Command key.Binding
 	Region  key.Binding
 	Profile key.Binding
+	AI      key.Binding
 	Help    key.Binding
 	Quit    key.Binding
 }
@@ -810,6 +821,10 @@ func defaultKeyMap() keyMap {
 		Profile: key.NewBinding(
 			key.WithKeys("P"),
 			key.WithHelp("P", "profile"),
+		),
+		AI: key.NewBinding(
+			key.WithKeys("A"),
+			key.WithHelp("A", "ai chat"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
@@ -853,4 +868,89 @@ func (a *App) resolveStartupView(viewName string) view.View {
 		}
 		return view.NewResourceBrowserWithType(a.ctx, a.registry, service, resourceType)
 	}
+}
+
+func (a *App) buildAIContext() *ai.Context {
+	regions := config.Global().Regions()
+	selections := config.Global().Selections()
+	var profiles []string
+	for _, sel := range selections {
+		if id := sel.ID(); id != "" {
+			profiles = append(profiles, id)
+		}
+	}
+
+	switch v := a.currentView.(type) {
+	case *view.ResourceBrowser:
+		return &ai.Context{
+			Mode:          ai.ContextModeList,
+			Service:       v.Service(),
+			ResourceType:  v.ResourceType(),
+			ResourceCount: v.ResourceCount(),
+			FilterText:    v.FilterText(),
+			Toggles:       v.ToggleStates(),
+			UserRegions:   regions,
+			UserProfiles:  profiles,
+		}
+
+	case *view.DiffView:
+		return &ai.Context{
+			Mode:         ai.ContextModeDiff,
+			Service:      v.Service(),
+			ResourceType: v.ResourceType(),
+			DiffLeft:     buildResourceRef(v.Left()),
+			DiffRight:    buildResourceRef(v.Right()),
+			UserRegions:  regions,
+			UserProfiles: profiles,
+		}
+
+	case *view.DetailView:
+		r := v.Resource()
+		if r != nil {
+			unwrapped := dao.UnwrapResource(r)
+			resourceRegion := dao.GetResourceRegion(r)
+			log.Debug("buildAIContext DetailView", "service", v.Service(), "resourceType", v.ResourceType(),
+				"id", unwrapped.GetID(), "resourceRegion", resourceRegion, "regions", regions)
+			ctx := &ai.Context{
+				Mode:            ai.ContextModeSingle,
+				Service:         v.Service(),
+				ResourceType:    v.ResourceType(),
+				ResourceID:      unwrapped.GetID(),
+				ResourceName:    unwrapped.GetName(),
+				ResourceRegion:  resourceRegion,
+				ResourceProfile: dao.GetResourceProfile(r),
+				UserRegions:     regions,
+				UserProfiles:    profiles,
+			}
+			if v.Service() == "lambda" && v.ResourceType() == "functions" {
+				ctx.LogGroup = "/aws/lambda/" + unwrapped.GetName()
+			}
+			if clusterArn := dao.GetResourceClusterArn(r); clusterArn != "" {
+				ctx.Cluster = aws.ExtractResourceName(clusterArn)
+			}
+			return ctx
+		}
+
+	case *view.LogView:
+		return &ai.Context{
+			LogGroup:     v.LogGroupName(),
+			UserRegions:  regions,
+			UserProfiles: profiles,
+		}
+	}
+	return &ai.Context{UserRegions: regions, UserProfiles: profiles}
+}
+
+func buildResourceRef(r dao.Resource) *ai.ResourceRef {
+	unwrapped := dao.UnwrapResource(r)
+	ref := &ai.ResourceRef{
+		ID:      unwrapped.GetID(),
+		Name:    unwrapped.GetName(),
+		Region:  dao.GetResourceRegion(r),
+		Profile: dao.GetResourceProfile(r),
+	}
+	if clusterArn := dao.GetResourceClusterArn(r); clusterArn != "" {
+		ref.Cluster = aws.ExtractResourceName(clusterArn)
+	}
+	return ref
 }

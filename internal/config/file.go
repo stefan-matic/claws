@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/clawscli/claws/internal/log"
 )
 
 const (
@@ -18,9 +20,11 @@ const (
 	DefaultTagSearchTimeout        = 30 * time.Second
 	DefaultMetricsLoadTimeout      = 30 * time.Second
 	DefaultLogFetchTimeout         = 10 * time.Second
+	DefaultDocsSearchTimeout       = 10 * time.Second
 	DefaultMetricsWindow           = 15 * time.Minute
 	DefaultMaxConcurrentFetches    = 50
 	DefaultMaxStackSize            = 100
+	DefaultAIMaxToolCallsPerQuery  = 50
 )
 
 func ConfigDir() (string, error) {
@@ -45,6 +49,7 @@ type TimeoutConfig struct {
 	TagSearch        Duration `yaml:"tag_search,omitempty"`
 	MetricsLoad      Duration `yaml:"metrics_load,omitempty"`
 	LogFetch         Duration `yaml:"log_fetch,omitempty"`
+	DocsSearch       Duration `yaml:"docs_search,omitempty"`
 }
 
 type CloudWatchConfig struct {
@@ -78,9 +83,20 @@ func (s StartupConfig) GetProfiles() []string {
 	return nil
 }
 
-// NavigationConfig controls navigation behavior.
 type NavigationConfig struct {
 	MaxStackSize int `yaml:"max_stack_size,omitempty"`
+}
+
+type AIConfig struct {
+	Profile              string `yaml:"profile,omitempty"`
+	Region               string `yaml:"region,omitempty"`
+	Model                string `yaml:"model,omitempty"`
+	MaxSessions          int    `yaml:"max_sessions,omitempty"`
+	MaxTokens            int    `yaml:"max_tokens,omitempty"`
+	ThinkingBudget       *int   `yaml:"thinking_budget,omitempty"`
+	MaxToolRounds        int    `yaml:"max_tool_rounds,omitempty"`
+	MaxToolCallsPerQuery int    `yaml:"max_tool_calls_per_query,omitempty"`
+	SaveSessions         *bool  `yaml:"save_sessions,omitempty"`
 }
 
 // ThemeConfig holds theme configuration.
@@ -134,6 +150,7 @@ type FileConfig struct {
 	Startup             StartupConfig     `yaml:"startup,omitempty"`
 	Theme               ThemeConfig       `yaml:"theme,omitempty"`
 	Navigation          NavigationConfig  `yaml:"navigation,omitempty"`
+	AI                  AIConfig          `yaml:"ai,omitempty"`
 }
 
 // Duration wraps time.Duration for YAML marshal/unmarshal as string (e.g., "5s", "30s")
@@ -172,6 +189,7 @@ func DefaultFileConfig() *FileConfig {
 			TagSearch:        Duration(DefaultTagSearchTimeout),
 			MetricsLoad:      Duration(DefaultMetricsLoadTimeout),
 			LogFetch:         Duration(DefaultLogFetchTimeout),
+			DocsSearch:       Duration(DefaultDocsSearchTimeout),
 		},
 		Concurrency: ConcurrencyConfig{
 			MaxFetches: DefaultMaxConcurrentFetches,
@@ -240,6 +258,9 @@ func (c *FileConfig) applyDefaults() {
 	if c.Timeouts.LogFetch <= 0 {
 		c.Timeouts.LogFetch = Duration(DefaultLogFetchTimeout)
 	}
+	if c.Timeouts.DocsSearch <= 0 {
+		c.Timeouts.DocsSearch = Duration(DefaultDocsSearchTimeout)
+	}
 	if c.CloudWatch.Window <= 0 {
 		c.CloudWatch.Window = Duration(DefaultMetricsWindow)
 	}
@@ -293,6 +314,15 @@ func (c *FileConfig) LogFetchTimeout() time.Duration {
 			return DefaultLogFetchTimeout
 		}
 		return c.Timeouts.LogFetch.Duration()
+	})
+}
+
+func (c *FileConfig) DocsSearchTimeout() time.Duration {
+	return withRLock(&c.mu, func() time.Duration {
+		if c.Timeouts.DocsSearch == 0 {
+			return DefaultDocsSearchTimeout
+		}
+		return c.Timeouts.DocsSearch.Duration()
 	})
 }
 
@@ -360,6 +390,92 @@ func (c *FileConfig) GetStartupView() string {
 
 func (c *FileConfig) GetTheme() ThemeConfig {
 	return withRLock(&c.mu, func() ThemeConfig { return c.Theme })
+}
+
+const DefaultAIModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+const DefaultAIMaxSessions = 100
+const DefaultAIMaxTokens = 16000
+const DefaultAIThinkingBudget = 8000
+const DefaultAIMaxToolRounds = 15
+
+func (c *FileConfig) GetAIProfile() string {
+	return withRLock(&c.mu, func() string {
+		return c.AI.Profile
+	})
+}
+
+func (c *FileConfig) GetAIRegion() string {
+	return withRLock(&c.mu, func() string {
+		return c.AI.Region
+	})
+}
+
+func (c *FileConfig) GetAIModel() string {
+	return withRLock(&c.mu, func() string {
+		if c.AI.Model == "" {
+			return DefaultAIModel
+		}
+		return c.AI.Model
+	})
+}
+
+func (c *FileConfig) GetAIMaxSessions() int {
+	return withRLock(&c.mu, func() int {
+		if c.AI.MaxSessions <= 0 {
+			return DefaultAIMaxSessions
+		}
+		return c.AI.MaxSessions
+	})
+}
+
+func (c *FileConfig) GetAIMaxTokens() int {
+	return withRLock(&c.mu, func() int {
+		if c.AI.MaxTokens <= 0 {
+			return DefaultAIMaxTokens
+		}
+		return c.AI.MaxTokens
+	})
+}
+
+func (c *FileConfig) GetAIThinkingBudget() int {
+	return withRLock(&c.mu, func() int {
+		if c.AI.ThinkingBudget == nil {
+			return DefaultAIThinkingBudget
+		}
+		v := *c.AI.ThinkingBudget
+		if v < 0 {
+			log.Warn("ai.thinking_budget is negative, treating as disabled", "value", v)
+			return 0
+		}
+		return v
+	})
+}
+
+func (c *FileConfig) GetAIMaxToolRounds() int {
+	return withRLock(&c.mu, func() int {
+		if c.AI.MaxToolRounds <= 0 {
+			return DefaultAIMaxToolRounds
+		}
+		return c.AI.MaxToolRounds
+	})
+}
+
+func (c *FileConfig) GetAIMaxToolCallsPerQuery() int {
+	return withRLock(&c.mu, func() int {
+		if c.AI.MaxToolCallsPerQuery <= 0 {
+			return DefaultAIMaxToolCallsPerQuery
+		}
+		return c.AI.MaxToolCallsPerQuery
+	})
+}
+
+func (c *FileConfig) GetAISaveSessions() bool {
+	return withRLock(&c.mu, func() bool {
+		if c.AI.SaveSessions == nil {
+			return false
+		}
+		return *c.AI.SaveSessions
+	})
 }
 
 func (c *FileConfig) SaveRegions(regions []string) error {
