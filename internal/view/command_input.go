@@ -195,23 +195,62 @@ func (c *CommandInput) updateSuggestions() {
 	c.suggIdx = 0
 }
 
+// currentThreshold returns the width threshold for the given input length
+func currentThreshold(inputLen int) int {
+	switch {
+	case inputLen >= commandInputWidth3:
+		return commandInputWidth4
+	case inputLen >= commandInputWidth2:
+		return commandInputWidth3
+	case inputLen >= commandInputWidth1:
+		return commandInputWidth2
+	default:
+		return commandInputWidth1
+	}
+}
+
 // updateWidth adjusts input width based on current input length (4-stage: 15 → 30 → 60 → 90)
 func (c *CommandInput) updateWidth() {
-	inputLen := len(c.textInput.Value())
-	var newWidth int
-	switch {
-	case inputLen > commandInputWidth3:
-		newWidth = commandInputWidth4
-	case inputLen > commandInputWidth2:
-		newWidth = commandInputWidth3
-	case inputLen > commandInputWidth1:
-		newWidth = commandInputWidth2
-	default:
-		newWidth = commandInputWidth1
-	}
+	newWidth := currentThreshold(len(c.textInput.Value()))
 	c.textInput.SetWidth(newWidth)
 	// Re-set value to reset display offset after width change
 	c.textInput.SetValue(c.textInput.Value())
+}
+
+// renderInputWithSuggestion renders textinput with fish-style inline suggestion
+func (c *CommandInput) renderInputWithSuggestion(s commandInputStyles, input string) string {
+	baseView := c.textInput.View()
+
+	// Find first suggestion that extends current input
+	var suffix string
+	for _, sugg := range c.suggestions {
+		if strings.HasPrefix(sugg, input) && len(sugg) > len(input) {
+			suffix = sugg[len(input):]
+			break
+		}
+	}
+
+	if suffix == "" {
+		return s.input.Render(baseView)
+	}
+
+	// Calculate remaining space within threshold
+	threshold := currentThreshold(len(input))
+	remaining := threshold - len(input)
+	if remaining <= 0 {
+		return s.input.Render(baseView)
+	}
+
+	// Truncate suffix to fit within threshold
+	if len(suffix) > remaining {
+		suffix = suffix[:remaining]
+	}
+
+	// Remove trailing padding from textinput so suggestion appears right after cursor
+	trimmedView := strings.TrimRight(baseView, " ")
+
+	// Render: trimmed input + dim suffix (within same input box style)
+	return s.input.Render(trimmedView + s.suggestion.Render(suffix))
 }
 
 // View renders the command input
@@ -221,8 +260,10 @@ func (c *CommandInput) View() string {
 	}
 
 	s := c.styles
-	inputView := s.input.Render(c.textInput.View())
 	input := c.textInput.Value()
+
+	// Fish-style inline suggestion: show completion suffix within threshold
+	inputView := c.renderInputWithSuggestion(s, input)
 
 	// Calculate where Enter will navigate to (alias resolution or prefix match)
 	destination := c.resolveDestination(input)
