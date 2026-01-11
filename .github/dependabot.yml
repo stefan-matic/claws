@@ -16,6 +16,10 @@ updates:
       charm:
         patterns:
           - "charm.land/*"
+          - "github.com/charmbracelet/*"
+      golang-x:
+        patterns:
+          - "golang.org/x/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
