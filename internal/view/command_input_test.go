@@ -785,6 +785,7 @@ func TestCommandInput_FishStyleSuggestion(t *testing.T) {
 		input      string
 		wantSuffix string // suffix should appear in view (dim)
 	}{
+		{"empty input", "", ""},                     // no suggestion for empty
 		{"partial service", "ec", "2"},              // ec -> ec2
 		{"service with slash", "ec2/", "instances"}, // ec2/ -> ec2/instances
 		{"partial resource", "ec2/in", "stances"},   // ec2/in -> ec2/instances

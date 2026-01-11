@@ -221,6 +221,11 @@ func (c *CommandInput) updateWidth() {
 func (c *CommandInput) renderInputWithSuggestion(s commandInputStyles, input string) string {
 	baseView := c.textInput.View()
 
+	// No suggestion for empty input
+	if input == "" {
+		return s.input.Render(baseView)
+	}
+
 	// Find first suggestion that extends current input
 	var suffix string
 	for _, sugg := range c.suggestions {
