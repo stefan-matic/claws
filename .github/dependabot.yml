@@ -9,6 +9,13 @@ updates:
     labels:
       - "dependencies"
     open-pull-requests-limit: 5
+    groups:
+      aws-sdk:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
+      charm:
+        patterns:
+          - "charm.land/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
