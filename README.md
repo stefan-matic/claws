@@ -1,3 +1,5 @@
+[🇯🇵 日本語](README.ja.md) | [🇨🇳 简体中文](README.zh-CN.md) | [🇰🇷 한국어](README.ko.md)
+
 # claws
 
 A terminal UI for AWS resource management
